@@ -1,0 +1,74 @@
+﻿{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: configure Debug",
+            "type": "shell",
+            "command": "C:/Users/jiyiti/AppData/Local/stm32cube/bundles/cmake/4.3.1+st.1/bin/cmake.exe",
+            "args": [
+                "--preset",
+                "Debug"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake: build Debug",
+            "type": "shell",
+            "command": "C:/Users/jiyiti/AppData/Local/stm32cube/bundles/cmake/4.3.1+st.1/bin/cmake.exe",
+            "args": [
+                "--build",
+                "--preset",
+                "Debug"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "none",
+            "problemMatcher": []
+        },
+        {
+            "label": "Flash: DAPLink OpenOCD",
+            "type": "shell",
+            "command": "E:/STM32 tools/openocd/0.12.0-7.1/.content/bin/openocd.exe",
+            "args": [
+                "-f",
+                "interface/cmsis-dap.cfg",
+                "-f",
+                "target/stm32f1x.cfg",
+                "-c",
+                "init; reset halt; flash write_image erase build/Debug/m2006_1.elf; verify_image build/Debug/m2006_1.elf; reset run; shutdown"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "CMake: build Debug",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Flash: ST-Link CubeProgrammer",
+            "type": "shell",
+            "command": "C:/Users/jiyiti/AppData/Local/stm32cube/bundles/programmer/2.22.0+st.1/bin/STM32_Programmer_CLI.exe",
+            "args": [
+                "-c",
+                "port=SWD",
+                "-w",
+                "build/Debug/m2006_1.elf",
+                "-v",
+                "-rst"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "CMake: build Debug",
+            "problemMatcher": []
+        }
+    ]
+}
+

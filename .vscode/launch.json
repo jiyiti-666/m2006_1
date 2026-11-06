@@ -1,0 +1,43 @@
+﻿{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug m2006_1 with DAPLink",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "openocd",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/m2006_1.elf",
+            "device": "STM32F103ZE",
+            "interface": "swd",
+            "preLaunchTask": "CMake: build Debug",
+            "armToolchainPath": "C:/Users/jiyiti/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
+            "serverpath": "E:/STM32 tools/openocd/0.12.0-7.1/.content/bin/openocd.exe",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/stm32f1x.cfg"
+            ]
+        },
+        {
+            "name": "Debug m2006_1 with ST-Link",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "stlink",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/m2006_1.elf",
+            "device": "STM32F103ZE",
+            "interface": "swd",
+            "preLaunchTask": "CMake: build Debug",
+            "armToolchainPath": "C:/Users/jiyiti/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
+            "serverpath": "C:/Users/jiyiti/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
+            "serverArgs": [
+                "-d",
+                "-s",
+                "-cp",
+                "C:/Users/jiyiti/AppData/Local/stm32cube/bundles/programmer/2.22.0+st.1/bin"
+            ],
+            "stm32cubeprogrammer": "C:/Users/jiyiti/AppData/Local/stm32cube/bundles/programmer/2.22.0+st.1/bin"
+        }
+    ]
+}
+
