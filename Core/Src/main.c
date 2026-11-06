@@ -29,6 +29,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include "m2006.h"
+#include "m2006_ctrl.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,8 +51,6 @@
 
 /* USER CODE BEGIN PV */
 M2006_Bus moto;
-volatile int16_t test_current = -2000;   /* 电流指令 0~10000，改这个值调力度 */
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -99,9 +98,10 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   setvbuf(stdout, NULL, _IONBF, 0);
-  M2006_Init(&moto, &hcan, 3);        /* 3 = 最大电机 ID */
-  M2006_SelfTest();                   /* 打印 03 E8 FC 18 01 2C 00 00 */
-  HAL_TIM_Base_Start_IT(&htim3);      /* 启动 2ms 控制周期 */
+  M2006_Init(&moto, &hcan, M2006_CTRL_ID);
+  M2006_SelfTest();
+  Ctrl_Init(&moto, M2006_CTRL_ID);
+  HAL_TIM_Base_Start_IT(&htim3);      /* 2ms 定时，内部 5 分频 = 10ms 控制 */
 
   /* USER CODE END 2 */
 
@@ -110,12 +110,11 @@ int main(void)
   uint32_t last = 0;
   while (1)
   {
-    if (HAL_GetTick() - last >= 200) {
+    Ctrl_Process();                    /* 解析 VOFA 下发的命令 */
+
+    if (HAL_GetTick() - last >= 50) {
       last = HAL_GetTick();
-      M2006_Motor *m = M2006_Get(&moto, 3);
-      printf("cmd=%5d spd=%4d fb=%5d cnt=%8ld %s\r\n",
-             test_current, m->speed, m->torque,
-             (long)m->total_cnt, m->online ? "OK" : "LOST");
+      Ctrl_SendData();                 /* 50ms 发一次波形 */
     }
     /* USER CODE END WHILE */
 
@@ -173,10 +172,14 @@ int _write(int file, char *ptr, int len)
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
+  static uint8_t div = 0;
+
   if (htim->Instance != TIM3) return;
 
-  M2006_SetCurrent(&moto, 3, test_current);   /* 3 号电机，开环给固定电流 */
-  M2006_Flush(&moto);
+  if (++div >= CTRL_DIV) {       /* 2ms × 5 = 10ms 控制周期 */
+    div = 0;
+    Ctrl_Task();
+  }
 }
 
 /* USER CODE END 4 */

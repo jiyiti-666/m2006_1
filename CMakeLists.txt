@@ -49,6 +49,9 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/m2006.c
+    Core/Src/pid_speed.c
+    Core/Src/pid_location.c
+    Core/Src/m2006_ctrl.c
 )
 
 # Add include paths
@@ -67,3 +70,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
 )
+
+# 让 printf 支持 %f（VOFA 波形要用浮点输出）
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE -u _printf_float)
