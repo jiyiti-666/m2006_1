@@ -20,6 +20,6 @@ extern PID_TypeDef g_location_pid;
 void    pid_location_init(float Kp, float Ki, float Kd, float SetPoint);
 int16_t pid_location_update(PID_TypeDef *pid, float currentValue);
 void    pid_location_clear(void);
-void    pid_location_clear_accum(void);
+void    pid_location_clear_accum(PID_TypeDef *pid);
 
 #endif

@@ -98,9 +98,9 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   setvbuf(stdout, NULL, _IONBF, 0);
-  M2006_Init(&moto, &hcan, M2006_CTRL_ID);
-  M2006_SelfTest();
-  Ctrl_Init(&moto, M2006_CTRL_ID);
+  M2006_Init(&moto, &hcan, (M2006_ID_A > M2006_ID_B) ? M2006_ID_A : M2006_ID_B);
+  /* M2006_SelfTest();  自检已通过，注释掉避免污染 VOFA 数据流 */
+  Ctrl_Init(&moto, M2006_ID_A, M2006_ID_B);
   HAL_TIM_Base_Start_IT(&htim3);      /* 2ms 定时，内部 5 分频 = 10ms 控制 */
 
   /* USER CODE END 2 */

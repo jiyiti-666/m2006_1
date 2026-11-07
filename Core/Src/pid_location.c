@@ -26,11 +26,11 @@ void pid_location_clear(void)
     g_location_pid.ActualValue = 0.0f;
 }
 
-void pid_location_clear_accum(void)
+void pid_location_clear_accum(PID_TypeDef *pid)
 {
-    g_location_pid.SumError  = 0.0f;
-    g_location_pid.Error     = 0.0f;
-    g_location_pid.LastError = 0.0f;
+    pid->SumError  = 0.0f;
+    pid->Error     = 0.0f;
+    pid->LastError = 0.0f;
 }
 
 int16_t pid_location_update(PID_TypeDef *pid, float currentValue)

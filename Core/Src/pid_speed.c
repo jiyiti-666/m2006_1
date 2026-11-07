@@ -26,11 +26,11 @@ void pid_speed_clear(void)
 }
 
 /* 只清积分和误差，保留 SetPoint（切模式时用） */
-void pid_speed_clear_accum(void)
+void pid_speed_clear_accum(PID_TypeDef *pid)
 {
-    g_speed_pid.SumError  = 0.0f;
-    g_speed_pid.Error     = 0.0f;
-    g_speed_pid.LastError = 0.0f;
+    pid->SumError  = 0.0f;
+    pid->Error     = 0.0f;
+    pid->LastError = 0.0f;
 }
 
 int16_t pid_speed_update(PID_TypeDef *pid, float currentValue)

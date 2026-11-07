@@ -30,7 +30,7 @@ extern PID_TypeDef g_speed_pid;
 
 void    pid_speed_init(float Kp, float Ki, float Kd, float SetPoint);
 void    pid_speed_clear(void);
-void    pid_speed_clear_accum(void);
+void    pid_speed_clear_accum(PID_TypeDef *pid);
 int16_t pid_speed_update(PID_TypeDef *pid, float currentValue);
 
 #endif
