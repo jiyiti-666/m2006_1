@@ -242,5 +242,12 @@ void TIM3_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+/* USART1 接收中断：CubeMX 未生成（.ioc 里没勾选 NVIC），手动补充 */
+extern UART_HandleTypeDef huart1;
+
+void USART1_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&huart1);
+}
 
 /* USER CODE END 1 */

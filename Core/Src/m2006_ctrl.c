@@ -15,6 +15,10 @@ static volatile CtrlMode s_mode = CTRL_MODE_OPEN;
 static PID_TypeDef s_spd_a, s_spd_b;
 static PID_TypeDef s_loc_a, s_loc_b;
 
+/* 上一周期的速度给定，供 VOFA 显示「目标速度」 */
+static volatile float s_spd_set_a = 0.0f;
+static volatile float s_spd_set_b = 0.0f;
+
 volatile int16_t g_open_current = 0;
 volatile int16_t g_speed_target = 0;
 volatile int32_t g_loc_target   = 0;
@@ -110,15 +114,48 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 /* ============ 命令解析 ============ */
+static void apply_gain(PID_TypeDef *p, char param, float v)
+{
+    if (param == 'P')      p->Proportion = v;
+    else if (param == 'I') p->Integral   = v;
+    else                   p->Derivative = v;
+}
+
+/* which: 0 = 两台一起改, 'A' = 只改 A, 'B' = 只改 B
+   改哪个环由当前模式决定：位置模式改位置环，其余改速度环 */
+static void set_gain(char which, char param, float v)
+{
+    int loc = (s_mode == CTRL_MODE_LOC);
+
+    if (which == 0 || which == 'A') apply_gain(loc ? &s_loc_a : &s_spd_a, param, v);
+    if (which == 0 || which == 'B') apply_gain(loc ? &s_loc_b : &s_spd_b, param, v);
+}
+
 static void parse_cmd(const char *s)
 {
-    float v;
-
     if (strncmp(s, "stop", 4) == 0) {
         g_open_current = 0;
         s_mode = CTRL_MODE_OPEN;
         pid_speed_clear();
         pid_location_clear();
+        pid_reset_state(&s_spd_a); pid_reset_state(&s_spd_b);
+        pid_reset_state(&s_loc_a); pid_reset_state(&s_loc_b);
+        return;
+    }
+
+    /* 把当前物理位置作为新的零点，清零多圈计数和目标 */
+    if (strncmp(s, "zero", 4) == 0) {
+        M2006_Motor *mA = M2006_Get(s_bus, s_id_a);
+        M2006_Motor *mB = M2006_Get(s_bus, s_id_b);
+
+        g_open_current = 0;
+        g_loc_target   = 0;
+        g_speed_target = 0;
+        s_mode = CTRL_MODE_OPEN;
+
+        if (mA != NULL) mA->total_cnt = 0;
+        if (mB != NULL) mB->total_cnt = 0;
+
         pid_reset_state(&s_spd_a); pid_reset_state(&s_spd_b);
         pid_reset_state(&s_loc_a); pid_reset_state(&s_loc_b);
         return;
@@ -131,12 +168,19 @@ static void parse_cmd(const char *s)
         return;
     }
 
-    if (strncmp(s, "loc:", 4) == 0) {
-        g_loc_target = (int32_t)(str2float(s + 4) * M2006_COUNT_PER_REV);
-        pid_reset_state(&s_spd_a); pid_reset_state(&s_spd_b);
-        pid_reset_state(&s_loc_a); pid_reset_state(&s_loc_b);
-        s_mode = CTRL_MODE_LOC;
-        return;
+    /* 同时兼容 "loc:1.0" 和 "location:1.0" 两种写法 */
+    {
+        const char *num = NULL;
+        if (strncmp(s, "location:", 9) == 0)   num = s + 9;
+        else if (strncmp(s, "loc:", 4) == 0)   num = s + 4;
+
+        if (num != NULL) {
+            g_loc_target = (int32_t)(str2float(num) * M2006_COUNT_PER_REV);
+            pid_reset_state(&s_spd_a); pid_reset_state(&s_spd_b);
+            pid_reset_state(&s_loc_a); pid_reset_state(&s_loc_b);
+            s_mode = CTRL_MODE_LOC;
+            return;
+        }
     }
 
     if (strncmp(s, "cur:", 4) == 0) {
@@ -145,26 +189,18 @@ static void parse_cmd(const char *s)
         return;
     }
 
-    if (strncmp(s, "Kp:", 3) == 0) {
-        v = str2float(s + 3);
-        if (s_mode == CTRL_MODE_LOC) g_location_pid.Proportion = v;
-        else                         g_speed_pid.Proportion    = v;
-        return;
-    }
+    /* —— PID 参数：不带后缀改两台，带 A/B 只改那一台 —— */
+    if (strncmp(s, "KpA:", 4) == 0) { set_gain('A', 'P', str2float(s + 4)); return; }
+    if (strncmp(s, "KpB:", 4) == 0) { set_gain('B', 'P', str2float(s + 4)); return; }
+    if (strncmp(s, "Kp:",  3) == 0) { set_gain(0,   'P', str2float(s + 3)); return; }
 
-    if (strncmp(s, "Ki:", 3) == 0) {
-        v = str2float(s + 3);
-        if (s_mode == CTRL_MODE_LOC) g_location_pid.Integral = v;
-        else                         g_speed_pid.Integral    = v;
-        return;
-    }
+    if (strncmp(s, "KiA:", 4) == 0) { set_gain('A', 'I', str2float(s + 4)); return; }
+    if (strncmp(s, "KiB:", 4) == 0) { set_gain('B', 'I', str2float(s + 4)); return; }
+    if (strncmp(s, "Ki:",  3) == 0) { set_gain(0,   'I', str2float(s + 3)); return; }
 
-    if (strncmp(s, "Kd:", 3) == 0) {
-        v = str2float(s + 3);
-        if (s_mode == CTRL_MODE_LOC) g_location_pid.Derivative = v;
-        else                         g_speed_pid.Derivative    = v;
-        return;
-    }
+    if (strncmp(s, "KdA:", 4) == 0) { set_gain('A', 'D', str2float(s + 4)); return; }
+    if (strncmp(s, "KdB:", 4) == 0) { set_gain('B', 'D', str2float(s + 4)); return; }
+    if (strncmp(s, "Kd:",  3) == 0) { set_gain(0,   'D', str2float(s + 3)); return; }
 }
 
 void Ctrl_Process(void)
@@ -184,12 +220,6 @@ void Ctrl_Task(void)
 
     uint8_t ok_a = (ma != NULL) && ma->online;
     uint8_t ok_b = (mb != NULL) && mb->online;
-
-    /* VOFA 调过的参数同步到本地的两路实例 */
-    sync_param(&s_spd_a, &g_speed_pid);
-    sync_param(&s_spd_b, &g_speed_pid);
-    sync_param(&s_loc_a, &g_location_pid);
-    sync_param(&s_loc_b, &g_location_pid);
 
     int16_t out_a = 0, out_b = 0;
 
@@ -251,6 +281,10 @@ void Ctrl_Task(void)
         break;
     }
 
+    /* 记录速度给定，供波形对比 */
+    s_spd_set_a = s_spd_a.SetPoint;
+    s_spd_set_b = s_spd_b.SetPoint;
+
     /* 掉线的电机强制卸力 */
     M2006_SetCurrent(s_bus, s_id_a, ok_a ? out_a : 0);
     M2006_SetCurrent(s_bus, s_id_b, ok_b ? out_b : 0);
@@ -266,13 +300,20 @@ void Ctrl_SendData(void)
     M2006_Motor *mb = M2006_Get(s_bus, s_id_b);
     if (ma == NULL || mb == NULL) return;
 
-    /* 位置都乘了方向系数，统一到同一个坐标系，可以直接比同步性 */
-    printf("motor:%.2f,%.2f,%.2f,%.1f,%.1f\r\n",
+    /* VOFA 波形 8 通道：
+       0 目标速度  1 A速度  2 B速度
+       3 目标圈数  4 A圈数  5 B圈数
+       6 A在线     7 B在线
+       位置都乘了方向系数，统一到同一坐标系，可以直接比同步性 */
+    printf("motor:%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%d,%d\r\n",
+           (double)s_spd_set_a,
+           (double)ma->speed,
+           (double)mb->speed,
            (double)((float)g_loc_target / M2006_COUNT_PER_REV),
            (double)((float)(M2006_SIGN_A * ma->total_cnt) / M2006_COUNT_PER_REV),
            (double)((float)(M2006_SIGN_B * mb->total_cnt) / M2006_COUNT_PER_REV),
-           (double)ma->speed,
-           (double)mb->speed);
+           ma->online ? 1 : 0,
+           mb->online ? 1 : 0);
 }
 
 CtrlMode Ctrl_GetMode(void)
