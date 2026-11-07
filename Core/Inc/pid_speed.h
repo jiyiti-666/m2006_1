@@ -10,9 +10,9 @@
 #define PID_SPEED_I_MAX     40000.0f
 
 /* 默认参数（M2006 速度环，10ms 控制周期） */
-#define SPEED_KP_DEFAULT    20.0f
-#define SPEED_KI_DEFAULT    0.10f
-#define SPEED_KD_DEFAULT    0.0f
+#define SPEED_KP_DEFAULT    10.0f
+#define SPEED_KI_DEFAULT    0.0f
+#define SPEED_KD_DEFAULT    0.1f
 
 typedef struct
 {

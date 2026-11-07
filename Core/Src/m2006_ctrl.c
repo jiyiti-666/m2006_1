@@ -162,7 +162,11 @@ static void parse_cmd(const char *s)
     }
 
     if (strncmp(s, "speed:", 6) == 0) {
-        g_speed_target = (int16_t)str2float(s + 6);
+        /* 命令按「输出轴 rpm」输入，超过 M2006_SPEED_LIMIT 会被截断 */
+        float rpm = str2float(s + 6);
+        if (rpm >  M2006_SPEED_LIMIT) rpm =  M2006_SPEED_LIMIT;
+        if (rpm < -M2006_SPEED_LIMIT) rpm = -M2006_SPEED_LIMIT;
+        g_speed_target = (int16_t)(rpm * M2006_REDUCTION);
         pid_reset_state(&s_spd_a); pid_reset_state(&s_spd_b);
         s_mode = CTRL_MODE_SPEED;
         return;
@@ -231,8 +235,9 @@ void Ctrl_Task(void)
         break;
 
     case CTRL_MODE_SPEED:
-        s_spd_a.SetPoint = (float)g_speed_target;
-        s_spd_b.SetPoint = (float)g_speed_target;
+        /* 反装的那台目标取反，两台在「世界坐标系」下朝同一方向 */
+        s_spd_a.SetPoint = (float)(M2006_SIGN_A * g_speed_target);
+        s_spd_b.SetPoint = (float)(M2006_SIGN_B * g_speed_target);
         if (ok_a) out_a = pid_speed_update(&s_spd_a, (float)ma->speed);
         if (ok_b) out_b = pid_speed_update(&s_spd_b, (float)mb->speed);
         break;
@@ -305,10 +310,14 @@ void Ctrl_SendData(void)
        3 目标圈数  4 A圈数  5 B圈数
        6 A在线     7 B在线
        位置都乘了方向系数，统一到同一坐标系，可以直接比同步性 */
+    /* VOFA 波形 8 通道（速度已换算成输出轴 rpm）：
+       0 目标速度  1 A速度  2 B速度
+       3 目标圈数  4 A圈数  5 B圈数
+       6 A在线     7 B在线 */
     printf("motor:%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%d,%d\r\n",
-           (double)s_spd_set_a,
-           (double)ma->speed,
-           (double)mb->speed,
+           (double)((M2006_SIGN_A * s_spd_set_a) / M2006_REDUCTION),
+           (double)((M2006_SIGN_A * ma->speed)     / M2006_REDUCTION),
+           (double)((M2006_SIGN_B * mb->speed)     / M2006_REDUCTION),
            (double)((float)g_loc_target / M2006_COUNT_PER_REV),
            (double)((float)(M2006_SIGN_A * ma->total_cnt) / M2006_COUNT_PER_REV),
            (double)((float)(M2006_SIGN_B * mb->total_cnt) / M2006_COUNT_PER_REV),
