@@ -41,8 +41,14 @@ typedef enum
 
 /* 外部可读写的目标值 */
 extern volatile int16_t  g_open_current;   /* 开环电流 -10000~10000 */
-extern volatile int16_t  g_speed_target;   /* 速度目标 rpm */
-extern volatile int32_t  g_loc_target;     /* 位置目标 count（按 A 的坐标系） */
+extern volatile int16_t  g_speed_target;   /* 速度目标 rpm（转子） */
+extern volatile int32_t  g_loc_target;     /* 位置目标 count（共同目标） */
+
+/* 差速时各自独立的目标。默认等于 g_loc_target */
+extern volatile int32_t  g_loc_target_a;
+extern volatile int32_t  g_loc_target_b;
+
+void     Ctrl_SetMode(CtrlMode m);   /* 底盘库切模式用 */
 
 void     Ctrl_Init(M2006_Bus *bus, uint8_t id_a, uint8_t id_b);
 void     Ctrl_Task(void);          /* 定时器里按 CTRL_DIV 调用 */

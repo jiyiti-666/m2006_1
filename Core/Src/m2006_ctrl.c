@@ -1,6 +1,7 @@
 #include "m2006_ctrl.h"
 #include "pid_speed.h"
 #include "pid_location.h"
+#include "chassis.h"
 #include "usart.h"
 #include <stdio.h>
 #include <string.h>
@@ -22,6 +23,10 @@ static volatile float s_spd_set_b = 0.0f;
 volatile int16_t g_open_current = 0;
 volatile int16_t g_speed_target = 0;
 volatile int32_t g_loc_target   = 0;
+
+/* 差速模式下两台各自的目标位置；单电机/同步时两者相等 */
+volatile int32_t g_loc_target_a = 0;
+volatile int32_t g_loc_target_b = 0;
 
 /* ============ 串口接收缓冲 ============ */
 static uint8_t  rx_byte;
@@ -90,6 +95,8 @@ void Ctrl_Init(M2006_Bus *bus, uint8_t id_a, uint8_t id_b)
     g_open_current = 0;
     g_speed_target = 0;
     g_loc_target   = 0;
+    g_loc_target_a = 0;
+    g_loc_target_b = 0;
     s_mode         = CTRL_MODE_OPEN;
 
     HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
@@ -150,6 +157,8 @@ static void parse_cmd(const char *s)
 
         g_open_current = 0;
         g_loc_target   = 0;
+        g_loc_target_a = 0;
+        g_loc_target_b = 0;
         g_speed_target = 0;
         s_mode = CTRL_MODE_OPEN;
 
@@ -179,12 +188,35 @@ static void parse_cmd(const char *s)
         else if (strncmp(s, "loc:", 4) == 0)   num = s + 4;
 
         if (num != NULL) {
-            g_loc_target = (int32_t)(str2float(num) * M2006_COUNT_PER_REV);
+            g_loc_target   = (int32_t)(str2float(num) * M2006_COUNT_PER_REV);
+            g_loc_target_a = g_loc_target;
+            g_loc_target_b = g_loc_target;
             pid_reset_state(&s_spd_a); pid_reset_state(&s_spd_b);
             pid_reset_state(&s_loc_a); pid_reset_state(&s_loc_b);
             s_mode = CTRL_MODE_LOC;
             return;
         }
+    }
+
+    /* —— 底盘运动：差速转弯 / 原地自旋 / 直行 —— */
+    if (strncmp(s, "turn:", 5) == 0) {
+        Chassis_Turn(str2float(s + 5));
+        return;
+    }
+
+    if (strncmp(s, "spin:", 5) == 0) {
+        Chassis_Spin(str2float(s + 5));
+        return;
+    }
+
+    if (strncmp(s, "go:", 3) == 0) {
+        Chassis_Go(str2float(s + 3));
+        return;
+    }
+
+    if (strncmp(s, "radius:", 7) == 0) {
+        Chassis_SetRadius(str2float(s + 7));
+        return;
     }
 
     if (strncmp(s, "cur:", 4) == 0) {
@@ -244,9 +276,9 @@ void Ctrl_Task(void)
 
     case CTRL_MODE_LOC:
     {
-        /* 反装的那台，目标位置符号相反，其余逻辑完全对称 */
-        s_loc_a.SetPoint = (float)(M2006_SIGN_A * g_loc_target);
-        s_loc_b.SetPoint = (float)(M2006_SIGN_B * g_loc_target);
+        /* 反装的那台，目标位置符号相反；A/B 的目标可以不同（差速） */
+        s_loc_a.SetPoint = (float)(M2006_SIGN_A * g_loc_target_a);
+        s_loc_b.SetPoint = (float)(M2006_SIGN_B * g_loc_target_b);
 
         int16_t spd_a = 0, spd_b = 0;
 
@@ -328,4 +360,13 @@ void Ctrl_SendData(void)
 CtrlMode Ctrl_GetMode(void)
 {
     return s_mode;
+}
+
+void Ctrl_SetMode(CtrlMode m)
+{
+    if (s_mode != m) {
+        pid_reset_state(&s_spd_a); pid_reset_state(&s_spd_b);
+        pid_reset_state(&s_loc_a); pid_reset_state(&s_loc_b);
+        s_mode = m;
+    }
 }

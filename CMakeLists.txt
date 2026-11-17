@@ -52,6 +52,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/pid_speed.c
     Core/Src/pid_location.c
     Core/Src/m2006_ctrl.c
+    Core/Src/chassis.c
 )
 
 # Add include paths
